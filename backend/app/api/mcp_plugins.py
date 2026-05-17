@@ -24,7 +24,7 @@ from app.user_manager import User
 from app.mcp import mcp_client, MCPPluginConfig, PluginStatus
 from app.services.mcp_test_service import mcp_test_service
 from app.logger import get_logger
-from app.security import validate_public_http_url
+from app.security import validate_http_url
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,7 @@ def _validate_mcp_server_url(plugin_type: str, server_url: Optional[str]) -> Opt
     if plugin_type in HTTP_PLUGIN_TYPES:
         if not server_url:
             raise HTTPException(status_code=400, detail=f"{plugin_type}类型插件必须提供server_url")
-        return validate_public_http_url(server_url)
+        return validate_http_url(server_url)
     return server_url
 
 

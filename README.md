@@ -425,6 +425,7 @@ POSTGRES_PASSWORD=your_secure_password
 # AI 服务
 OPENAI_API_KEY=your_openai_key
 OPENAI_BASE_URL=https://api.openai.com/v1
+# 自部署模型服务可使用内网/本机地址，例如 http://host.docker.internal:11434/v1
 DEFAULT_AI_PROVIDER=openai
 DEFAULT_MODEL=gpt-4o-mini
 
@@ -481,7 +482,16 @@ OPENAI_BASE_URL=https://api.new-api.com/v1
 
 # 其他中转服务
 OPENAI_BASE_URL=https://your-proxy-service.com/v1
+
+# 本机或内网模型服务（Ollama、LM Studio、One API / New API 等）
+OPENAI_BASE_URL=http://host.docker.internal:11434/v1
 ```
+
+> **🏠 内网 API 与 MCP 说明**
+>
+> - 本 fork 面向自部署场景，AI API 地址和 HTTP/SSE MCP Server URL 均允许使用本机或内网地址。
+> - Docker 容器内的 `127.0.0.1` 指容器自身；访问宿主机服务通常使用 `host.docker.internal` 或宿主机在 Docker 网络中的 IP。
+> - 仍会拒绝非 HTTP/HTTPS 协议，以及带 `username:password@host` 认证信息的 URL。
 
 ## 🐳 Docker 部署详情
 
