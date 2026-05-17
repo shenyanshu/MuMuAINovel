@@ -177,7 +177,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/xiamuceer-j/MuMuAINovel.git
+git clone https://github.com/shenyanshu/MuMuAINovel.git
 cd MuMuAINovel
 
 # 2. 配置环境变量（必需）
@@ -202,11 +202,11 @@ docker-compose up -d
 > 2. **数据库初始化**: `init_postgres.sql` 会在首次启动时自动执行，安装必要的PostgreSQL扩展
 > 3. **自行构建**: 如需从源码构建，请先下载 embedding 模型文件（[加群获取](frontend/public/qq.jpg)）
 
-### 使用 Docker Hub 镜像（推荐新手）
+### 使用 GHCR 镜像（推荐新手）
 
 ```bash
 # 1. 拉取最新镜像（已包含模型文件）
-docker pull mumujie/mumuainovel:latest
+docker pull ghcr.io/shenyanshu/mumuainovel:latest
 
 # 2. 创建 docker-compose.yml（点击下方展开查看完整配置）
 ```
@@ -267,7 +267,7 @@ services:
       - max_wal_size=${POSTGRES_MAX_WAL_SIZE:-4GB}
 
   mumuainovel:
-    image: mumujie/mumuainovel:latest
+    image: ghcr.io/shenyanshu/mumuainovel:latest
     container_name: mumuainovel
     depends_on:
       postgres:
@@ -362,7 +362,7 @@ docker-compose pull
 docker-compose up -d
 ```
 
-> **💡 提示**: Docker Hub 镜像已包含所有依赖和模型文件，无需额外下载
+> **💡 提示**: GHCR 镜像已包含所有依赖和模型文件，无需额外下载
 
 ### 本地开发 / 从源码构建
 
@@ -509,7 +509,7 @@ OPENAI_BASE_URL=https://your-proxy-service.com/v1
 | `backend/scripts/init_postgres.sql` | PostgreSQL 扩展安装脚本 | ✅ 自动挂载 |
 | `backend/embedding/models--*/` | Embedding 模型文件 | ⚠️ 自建需要 |
 
-> **注意**: 使用 Docker Hub 镜像时，模型文件已包含在镜像中，无需额外下载
+> **注意**: 使用 GHCR 镜像时，模型文件已包含在镜像中，无需额外下载
 
 ### 常用命令
 

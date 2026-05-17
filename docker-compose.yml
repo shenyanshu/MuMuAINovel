@@ -53,7 +53,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: mumujie/mumuainovel:latest
+    image: ghcr.io/shenyanshu/mumuainovel:latest
     container_name: mumuainovel
     depends_on:
       postgres:
