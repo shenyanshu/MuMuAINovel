@@ -87,6 +87,9 @@ echo "================================================"
 echo "🎉 启动应用服务..."
 echo "================================================"
 
+# 只信任指定代理注入的 X-Forwarded-*；HTTPS 反向代理需要让后端看到原始协议，才能自动设置 Secure Cookie。
+FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-127.0.0.1}"
+
 # 启动应用（使用 exec 替换当前进程，确保信号正确传递）
 cd /app
 exec uvicorn app.main:app \
@@ -94,4 +97,6 @@ exec uvicorn app.main:app \
     --port "${APP_PORT:-8000}" \
     --log-level info \
     --access-log \
+    --proxy-headers \
+    --forwarded-allow-ips "${FORWARDED_ALLOW_IPS}" \
     --use-colors

@@ -285,6 +285,7 @@ services:
       - APP_HOST=${APP_HOST:-0.0.0.0}
       - APP_PORT=8000
       - DEBUG=${DEBUG:-false}
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
       # 数据库配置
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-mumuai}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-mumuai_novel}
       - DB_HOST=postgres
@@ -326,7 +327,8 @@ services:
       # 会话配置
       - SESSION_EXPIRE_MINUTES=${SESSION_EXPIRE_MINUTES:-120}
       - SESSION_REFRESH_THRESHOLD_MINUTES=${SESSION_REFRESH_THRESHOLD_MINUTES:-30}
-      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+      # SESSION_COOKIE_SECURE 不设置默认值，应用会按实际请求协议自动判断
+      # HTTPS 反向代理需正确配置 FORWARDED_ALLOW_IPS，或在 .env 中显式设置 SESSION_COOKIE_SECURE=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -442,20 +444,24 @@ LINUXDO_REDIRECT_URI=http://localhost:8000/api/auth/callback
 # LinuxDO 登录专用代理（可选，仅影响 OAuth token 与用户信息请求）
 LINUXDO_PROXY_URL=http://127.0.0.1:7890
 
+# HTTPS 反向代理（可选）：填写可信代理 IP/网段，确保后端识别 X-Forwarded-Proto=https
+FORWARDED_ALLOW_IPS=127.0.0.1
+
 # PostgreSQL 连接池（高并发优化）
 DATABASE_POOL_SIZE=30
 DATABASE_MAX_OVERFLOW=20
 
 # 会话 Cookie Secure 标记
-# 默认 true，适合 HTTPS 部署；如果使用 HTTP 访问并且浏览器不保存登录 Cookie，可设为 false
-SESSION_COOKIE_SECURE=true
+# 默认按实际请求协议自动判断；HTTPS 反向代理且未传递请求协议时，可显式设为 true
+# SESSION_COOKIE_SECURE=true
 ```
 
 > **🔐 Cookie Secure 说明**
 >
-> - HTTPS 部署：建议保持 `SESSION_COOKIE_SECURE=true`，浏览器只会通过 HTTPS 发送登录 Cookie。
-> - HTTP 部署：如果登录后浏览器没有保存 Cookie，请在 `.env` 中设置 `SESSION_COOKIE_SECURE=false`，然后重启后端或 Docker 容器。
-> - Docker Compose 示例默认使用 `SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}`，如需关闭必须在 `.env` 中显式配置。
+> - 默认策略：未显式配置时，应用按当前请求协议判断，HTTPS 响应设置 Secure，HTTP 响应不设置 Secure。
+> - HTTPS 反向代理：代理需发送 `X-Forwarded-Proto`，并将 `FORWARDED_ALLOW_IPS` 设置为可信代理 IP/网段；如果无法配置代理头，可在 `.env` 中设置 `SESSION_COOKIE_SECURE=true` 强制启用。
+> - Docker 容器内的可信代理 IP 通常不是宿主机或代理容器里的 `127.0.0.1`，需要填写后端容器实际看到的代理 IP/网段。
+> - HTTP 部署：不要强制设置 `SESSION_COOKIE_SECURE=true`，否则浏览器不会通过 HTTP 回传登录 Cookie。
 >
 > **🌐 LinuxDO 专用代理说明**
 >

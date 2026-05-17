@@ -74,6 +74,7 @@ services:
       - APP_HOST=${APP_HOST:-0.0.0.0}
       - APP_PORT=8000
       - DEBUG=${DEBUG:-false}
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
       
       # 数据库配置
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-mumuai}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-mumuai_novel}
@@ -124,7 +125,8 @@ services:
       # 会话配置
       - SESSION_EXPIRE_MINUTES=${SESSION_EXPIRE_MINUTES:-120}
       - SESSION_REFRESH_THRESHOLD_MINUTES=${SESSION_REFRESH_THRESHOLD_MINUTES:-30}
-      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+      # SESSION_COOKIE_SECURE 不在 Compose 中设置默认值，应用会按实际请求协议自动判断。
+      # HTTPS 反向代理需正确配置 FORWARDED_ALLOW_IPS，或在 .env 中显式设置 SESSION_COOKIE_SECURE=true。
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -142,4 +144,3 @@ volumes:
 networks:
   ai-story-network:
     driver: bridge
-

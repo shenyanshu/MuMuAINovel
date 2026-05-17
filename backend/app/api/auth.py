@@ -22,6 +22,7 @@ from app.models.user import User as UserModel
 from app.models.settings import Settings as SettingsModel
 from app.services.email_service import email_service
 from app.security import create_session_token
+from app.session_cookie_policy import should_secure_session_cookie
 
 # 中国时区 UTC+8
 CHINA_TZ = timezone(timedelta(hours=8))
@@ -245,18 +246,16 @@ def _validate_password(password: str):
         raise HTTPException(status_code=400, detail="密码长度至少为6个字符")
 
 
-def _is_session_cookie_secure() -> bool:
+def _is_session_cookie_secure(request: Request) -> bool:
     """判断会话 Cookie 是否启用 Secure 标记。"""
-    if settings.SESSION_COOKIE_SECURE is not None:
-        return settings.SESSION_COOKIE_SECURE
-    return not settings.debug
+    return should_secure_session_cookie(settings.SESSION_COOKIE_SECURE, request.url.scheme)
 
 
-def _set_login_cookies(response: Response, user_id: str):
+def _set_login_cookies(response: Response, user_id: str, request: Request):
     """设置登录 Cookie"""
     max_age = settings.SESSION_EXPIRE_MINUTES * 60
     session_token = create_session_token(user_id, max_age)
-    cookie_secure = _is_session_cookie_secure()
+    cookie_secure = _is_session_cookie_secure(request)
     response.set_cookie(
         key="session_token",
         value=session_token,
@@ -345,7 +344,7 @@ async def get_auth_config():
 
 
 @router.post("/local/login", response_model=LocalLoginResponse)
-async def local_login(request: LocalLoginRequest, response: Response):
+async def local_login(request: LocalLoginRequest, response: Response, http_request: Request):
     """本地账户登录（支持.env配置的管理员账号和Linux DO授权后绑定的账号）"""
     if not settings.LOCAL_AUTH_ENABLED:
         raise HTTPException(status_code=403, detail="本地账户登录未启用")
@@ -402,7 +401,7 @@ async def local_login(request: LocalLoginRequest, response: Response):
 
             logger.info(f"[本地登录] 管理员用户 {user.user_id} 登录成功")
 
-    _set_login_cookies(response, user.user_id)
+    _set_login_cookies(response, user.user_id, http_request)
     logger.info(f"✅ [登录] 用户 {user.user_id} 登录成功，会话有效期 {settings.SESSION_EXPIRE_MINUTES} 分钟")
 
     return LocalLoginResponse(
@@ -482,7 +481,7 @@ async def send_email_verification_code(request: EmailSendCodeRequest):
 
 
 @router.post("/email/register", response_model=LocalLoginResponse)
-async def email_register(request: EmailRegisterRequest, response: Response):
+async def email_register(request: EmailRegisterRequest, response: Response, http_request: Request):
     """邮箱验证码注册并自动登录"""
     runtime = await _get_auth_runtime_settings()
     if not runtime["email_auth_enabled"]:
@@ -522,7 +521,7 @@ async def email_register(request: EmailRegisterRequest, response: Response):
     await password_manager.set_password(user.user_id, email, request.password)
     _email_verification_storage.pop(_get_verification_storage_key("register", email), None)
 
-    _set_login_cookies(response, user.user_id)
+    _set_login_cookies(response, user.user_id, http_request)
     logger.info(f"✅ [邮箱注册] 用户 {user.user_id} 注册并登录成功")
 
     return LocalLoginResponse(
@@ -533,7 +532,7 @@ async def email_register(request: EmailRegisterRequest, response: Response):
 
 
 @router.post("/email/login", response_model=LocalLoginResponse)
-async def email_login(request: EmailLoginRequest, response: Response):
+async def email_login(request: EmailLoginRequest, response: Response, http_request: Request):
     """邮箱验证码登录"""
     runtime = await _get_auth_runtime_settings()
     if not runtime["email_auth_enabled"]:
@@ -571,7 +570,7 @@ async def email_login(request: EmailLoginRequest, response: Response):
     if latest_user:
         user = latest_user
 
-    _set_login_cookies(response, user.user_id)
+    _set_login_cookies(response, user.user_id, http_request)
     logger.info(f"✅ [邮箱登录] 用户 {user.user_id} 登录成功")
 
     return LocalLoginResponse(
@@ -638,10 +637,10 @@ async def get_linuxdo_auth_url():
 
 
 async def _handle_callback(
+    http_request: Request,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
-    response: Response = None
 ):
     """
     LinuxDO OAuth2 回调处理
@@ -692,7 +691,7 @@ async def _handle_callback(
     logger.info(f"OAuth回调成功，重定向到前端: {redirect_url}")
     redirect_response = RedirectResponse(url=redirect_url)
 
-    _set_login_cookies(redirect_response, user.user_id)
+    _set_login_cookies(redirect_response, user.user_id, http_request)
     logger.info(f"✅ [OAuth登录] 用户 {user.user_id} 登录成功，会话有效期 {settings.SESSION_EXPIRE_MINUTES} 分钟")
 
     if is_first_login:
@@ -702,7 +701,7 @@ async def _handle_callback(
             max_age=300,
             httponly=False,
             samesite="lax",
-            secure=_is_session_cookie_secure(),
+            secure=_is_session_cookie_secure(http_request),
         )
         logger.info(f"✅ [OAuth登录] 用户 {user.user_id} 首次登录，已设置 first_login 标记")
 
@@ -711,24 +710,24 @@ async def _handle_callback(
 
 @router.get("/linuxdo/callback")
 async def linuxdo_callback(
+    http_request: Request,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
-    response: Response = None
 ):
     """LinuxDO OAuth2 回调处理（标准路径）"""
-    return await _handle_callback(code, state, error, response)
+    return await _handle_callback(http_request, code, state, error)
 
 
 @router.get("/callback")
 async def callback_alias(
+    http_request: Request,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
-    response: Response = None
 ):
     """LinuxDO OAuth2 回调处理（兼容路径）"""
-    return await _handle_callback(code, state, error, response)
+    return await _handle_callback(http_request, code, state, error)
 
 
 @router.post("/refresh")
@@ -756,7 +755,7 @@ async def refresh_session(request: Request, response: Response):
         except (ValueError, TypeError):
             pass
 
-    _set_login_cookies(response, user.user_id)
+    _set_login_cookies(response, user.user_id, request)
 
     china_now = get_china_now()
     expire_time = china_now + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
@@ -864,7 +863,7 @@ async def initialize_user_password(request: Request, password_req: SetPasswordRe
 
 
 @router.post("/bind/login", response_model=LocalLoginResponse)
-async def bind_account_login(request: LocalLoginRequest, response: Response):
+async def bind_account_login(request: LocalLoginRequest, response: Response, http_request: Request):
     """使用绑定的账号密码登录（LinuxDO授权后绑定的账号）"""
     all_users = await user_manager.get_all_users()
     target_user = None
@@ -896,7 +895,7 @@ async def bind_account_login(request: LocalLoginRequest, response: Response):
     if not is_valid:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
-    _set_login_cookies(response, target_user.user_id)
+    _set_login_cookies(response, target_user.user_id, http_request)
     logger.info(f"✅ [绑定账号登录] 用户 {target_user.user_id} ({request.username}) 登录成功，会话有效期 {settings.SESSION_EXPIRE_MINUTES} 分钟")
 
     return LocalLoginResponse(
